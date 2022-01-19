@@ -1,0 +1,47 @@
+{
+  "successful_login": {
+    "en": "You have logged in successfully."
+  },
+  "successful_logout": {
+    "en": "You have logged out successfully."
+  },
+  "invalid_token": {
+    "en": "Invalid Token."
+  },
+  "not_authorized": {
+    "en": "User not authorized to perform action."
+  },
+  "unknown_error": {
+    "en": "Oops! Unknown Error occurred. Please try again."
+  },
+  "validation_error": {
+    "en": "Validations Failed."
+  },
+  "user_status_pending": {
+    "en": "Your account is pending verification, please complete the sign up process."
+  },
+  "retrieve_success": {
+    "en": "Retrieved successfully."
+  },
+  "create_success": {
+    "en": "Created successfully."
+  },
+  "update_success": {
+    "en": "Updated successfully."
+  },
+  "upload_success": {
+    "en": "Uploaded successfully."
+  },
+  "delete_success": {
+    "en": "Deleted successfully."
+  },
+  "invalid_phone_number": {
+    "en": "Please provide a valid phone number."
+  },
+  "otp_sent": {
+    "en": "OTP has been sent successfully."
+  },
+  "otp_verified": {
+    "en": "OTP has been verified successfully."
+  }
+}

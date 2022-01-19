@@ -1,0 +1,242 @@
+﻿
+
+<!doctype html>
+<html lang="en">
+   <head>
+      <!-- Required meta tags -->
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <!-- Bootstrap CSS -->
+      <!-- <link href="css/bootstrap.min.css" rel="stylesheet">
+         <link href="css/form-style.css" rel="stylesheet"> -->
+      <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+      <title>HealthUno Healthcare</title>
+      <style>  
+         table {
+         counter-reset: section;
+         }
+         .count:before {
+            counter-increment: section;
+            content: counter(section);
+         }
+         .prescriptionpdf .table>:not(caption)>*>* {
+         padding: 3px;
+         }
+         .main-container {
+         max-width: 710px;
+         border: 2px solid #000000;
+         padding: 10px;
+         margin: 30px auto;
+         font-family: Arial, Helvetica, 'Times New Roman', sans-serif;
+         font-size: 10px;
+         line-height: 12px;
+         }
+         .address-box ul {
+         list-style: none;
+         padding: 0;
+         font-size: 9px;
+         line-height: 10px;
+         }
+         .address-box ul li a {
+         text-decoration: none;
+         color: #000000;
+         }
+         .border-black {
+         border-color: #000000;
+         }
+         .address-box ul li:first-child {
+         font-size: 13px;
+         line-height: 17px;
+         font-weight: bold;
+         }
+         .name-section {
+         font-weight: bold;
+         font-size: 12px;
+         padding-bottom: 15px;
+         margin-top: 20px;
+         }
+         .referring-section {
+         padding-top: 12px;
+         padding-bottom: 15px;
+         border-top: 1px solid #ccc;
+         }
+      </style>
+   </head>
+   <body>
+      <div class="container main-container prescriptionpdf">
+         <div class="row justify-content-center">
+            <div class="col-lg-12">
+               <div class="header-section">
+                  <div class="row">
+                     <div class="col-sm-5 col-5">
+                        <img src="https://healthuno-dev-public.s3.ap-south-1.amazonaws.com/images/logo/logo.png" alt="" style="max-width: 170px !important; width: 170px !important;" />
+                        <div class="name-section">
+                           Dr {{doctor_data.full_name}}
+                        </div>
+                     </div>
+                     <div class="col-sm-2  col-2">
+                        &nbsp;  
+                     </div>
+                     <div class="col-sm-5  col-5">
+                        <div class="row justify-content-end">
+                           <div class="col-sm-11 col-12">
+                              <div class="address-box">
+                                 <ul>
+                                    <li>HealthUno Healthcare</li>
+                                    <li>No. 47, Mount Poonamallee Rd Trunk Road, Kattupakkam,</li>
+                                    <li>Chennai, 600056</li>
+                                    <li>Ph No: <a href="tel:+919902677868" target="_blank">+919902677868</a></li>
+                                    <li>Email - <a href="mailto:support@healthuno.com" target="_blank">support@healthuno.com</a></li>
+                                    <li>Website:<a href="https://www.healthuno.com" target="_blank">www.healthuno.com</a></li>
+                                 </ul>
+                              </div>
+                           </div>
+                        </div>
+                     </div>
+                  </div>
+               </div>
+            </div>
+         </div>
+         <div class="row">
+            <div class="col-lg-12">
+               <div class="referring-section">
+                  <div class="table-responsive">
+                     <table class="table table-bordered border-black">
+                        <thead>
+                           <tr>
+                              <th scope="col"><strong>Name</strong></th>
+                              <th scope="col"><strong>{{patient_data.full_name}}</strong></th>
+                              <th scope="col"><strong>Age/Sex</strong></th>
+                              <th scope="col"> {{patient_data.age}} / {{patient_data.gender}}</th>
+                              <th scope="col"><strong>Hospital ID:</strong></th>
+                              <th scope="col" style="font-size: 13px;"></th>
+                           </tr>
+                        </thead>
+                        <tbody>
+                           <tr>
+                              <td><strong>Referring Doctor:</strong></td>
+                              <td>&nbsp;</td>
+                              <td><strong>File No:</strong></td>
+                              <td>{{appointment_id}}</td>
+                              <td><strong>Email ID:</strong></td>
+                              <td>{{patient_data.email}}</td>
+                           </tr>
+                           <tr>
+                              <td><strong>Phone Number:</strong></td>
+                              <td>{{patient_data.mobile_number}}</td>
+                              <td><strong>Visit Type:</strong></td>
+                              <td>Video Consultation</td>
+                              <td><strong>Visit Date:</strong></td>
+                              <td><strong>{{appointment_date}}</strong></td>
+                           </tr>
+                           <tr>
+                              <td colspan="6"><strong>Disclaimer:</strong> This is an ONLINE consultation response. The patient has not been physically examined. The prescription or advice is based on the patient's description of the problem which is given below and also explained over video consultation.</td>
+                           </tr>
+                        </tbody>
+                     </table>
+                  </div>
+               </div>
+            </div>
+         </div>
+         <div class="row">
+            <div class="col-lg-12">
+               <div class="name-section pb-1 border-0">
+                  Rx
+               </div>
+            </div>
+         </div>
+         <div class="row">
+            <div class="col-lg-12">
+               <div class="referring-section pt-1">
+                  <div class="table-responsive-xl">
+                     <table class="table table-bordered">
+                        <thead>
+                           <tr>
+                              <th scope="col"></th>
+                              <th scope="col">Medication</th>
+                              <th scope="col" colspan="3">Dosage</th>
+                              <th scope="col">SOS</th>
+                              <th scope="col">STAT</th>
+                              <th scope="col">Instruction</th>
+                              <th scope="col">Periodicity</th>
+                              <th scope="col">Duration</th>
+                              <th scope="col">Note</th>
+                           </tr>
+                        </thead>
+                        <tbody>
+                           <tr>
+                              <td>&nbsp;</td>
+                              <td>&nbsp;</td>
+                              <td><strong>Morg</strong></td>
+                              <td><strong>Aft</strong></td>
+                              <td><strong>Night</strong></td>
+                              <td>&nbsp;</td>
+                              <td>&nbsp;</td>
+                              <td>&nbsp;</td>
+                           </tr>
+                           {{#each prescriptions}}
+                           <tr>
+                              <td>{{this.sq_number}}</td>
+                              <td><strong>{{this.medicine_type_name}} - {{this.medicine_name}}</strong></td>
+                              <td>{{this.morning}}</td>
+                              <td>{{this.afternoon}}</td>
+                              <td>{{this.night}}</td>
+                              <td>{{this.sos}}</td>
+                              <td>{{this.stat}}</td>
+                              <td>{{this.dosage.instruction}}</td>
+                              <td>{{this.periodicity}}</td>
+                              <td>{{this.days}} {{this.periodicity}}</td>
+                              <td>{{this.add_comments}}</td>
+                           </tr>
+                           {{/each}}
+                        </tbody>
+                     </table>
+                  </div>
+               </div>
+            </div>
+         </div>
+         <div class="row">
+            <div class="col-lg-12">
+               <div class="name-section pb-1 border-0">
+                  Investigations
+               </div>
+            </div>
+         </div>
+         <div class="row">
+            <div class="col-lg-12">
+               <div class="referring-section pt-1">
+                  <div class="table-responsive-xl">
+                     <table class="table table-bordered">
+                        <thead>
+                           <tr>
+                              <th scope="col">SL</th>
+                              <th scope="col">Lab Reports</th>
+                        </thead>
+                        <tbody>
+                           {{#each investigations}}
+                           <tr>
+                              <td class="count"></td>
+                              <td>
+                                 {{this}}
+                              </td>
+                           </tr>
+                           {{/each}}
+                        </tbody>
+                     </table>
+                  </div>
+               </div>
+            </div>
+         </div>
+         <div class="row">
+            <div class="col-lg-12">
+               <div class="name-section border-0 text-end pb-2">
+                  Dr {{doctor_data.full_name}}
+               </div>
+            </div>
+         </div>
+      </div>
+      <!-- Optional JavaScript; choose one of the two! -->
+      <!-- Option 1: Bootstrap Bundle with Popper -->
+      <!--    <script src="js/bootstrap.bundle.min.js"></script>-->
+   </body>
+</html>
