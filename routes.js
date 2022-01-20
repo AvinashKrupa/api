@@ -32,7 +32,7 @@ const viewController = require("./controllers/v1/viewController")
 const termsandconditionController = require("./controllers/v1/termsandconditionController")
 
 router.get('/', (req, res) => {
-    res.send('HealthUNO Application is running on this Server.');
+    res.send(`${process.env.APP_NAME} Application is running on this Server.`);
 });
 
 //----------------------Admin------------------------------------------//

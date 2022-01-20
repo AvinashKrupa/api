@@ -37,5 +37,5 @@ app.use(defaultResponse)
 const port = config.appPort || 3001;
 
 app.listen(port, () => {
-    console.log(`HealthUNO app listening at port :${port}`);
+    console.log(`${process.env.APP_NAME} app listening at port :${port}`);
 });
