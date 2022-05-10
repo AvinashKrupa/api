@@ -4,14 +4,16 @@ import Appointment from "../../db/models/appointment";
 import Prescription from "../../db/models/prescription";
 import Labconsultation from "../../db/models/labconsultation";
 import Template from "../../db/models/template";
+import Configuration from "../../db/models/configuration";
 
 import {validate} from "../../helpers/validator";
 import {HandleError} from "../../helpers/errorHandling";
 import {initiateNotifications} from "../../helpers/notificationHelper";
 import * as config from "../../config/config";
 import {createPdfOfHtmlDoc, renderPdfData} from "../../helpers/pdfGenHelper";
-import {uploadFile} from "../../helpers/s3FileUploadHelper";
+import {uploadFile, getDocUrlFromS3, deleteFile, getPresignedUrl} from "../../helpers/s3FileUploadHelper";
 import {getTimezonedDateFromUTC} from "../../helpers/timeHelper";
+const axios = require('axios');
 
 const index = (req, res) => {
     const translator = translate(req.headers.lang);
@@ -64,25 +66,25 @@ const submitPrescription = (req, res) => {
             let prescriptions = req.body.prescriptions.map(pres => {
                 if (!pres.medicine || pres.medicine == "")
                     delete pres.medicine
-                return pres
+                return {...pres,appointment:appointment_id}
             })
             let prescriptionResult = await Prescription.insertMany(prescriptions);
             prescriptionResult = prescriptionResult.map(prescription => {
                 return prescription._id;
             })
 
-            // Generate pdf of the prescription of the appointment
+            // Generate pdf of the prescription for the appointment
             let prescriptionsData = prescriptions;
             await renderPdfData(prescriptionsData);
 
             let appointment_data = await Appointment.findOne({_id: appointment_id})
                 .populate('patient', "user_id")
-                .populate('doctor', "first_name last_name");
+                .populate('doctor', "first_name last_name digital_signature_url");
             let today = new Date();
             let dob = new Date(appointment_data.patient.user_id.dob);
             let age = today.getFullYear() - dob.getFullYear();
-
             let appointment_date = await getTimezonedDateFromUTC(appointment_data.time.utc_time, timezone, 'DD-MM-YYYY');
+        
             let patient_data = {};
             patient_data.age = age;
             patient_data.full_name = appointment_data.patient.user_id.first_name + ' ' + appointment_data.patient.user_id.last_name;
@@ -92,7 +94,13 @@ const submitPrescription = (req, res) => {
 
             let doctor_data = {};
             doctor_data.full_name = appointment_data.doctor.first_name + ' ' + appointment_data.doctor.last_name;
-
+            doctor_data.digital_signature = appointment_data.doctor.digital_signature_url ;
+            if(doctor_data.digital_signature) {
+                doctor_data.digital_signature = await getPresignedUrl(appointment_data.doctor.digital_signature_url);
+                let image = await axios.get(doctor_data.digital_signature, {responseType: 'arraybuffer'});
+                doctor_data.digital_signature = Buffer.from(image.data).toString('base64');  
+            }
+            
             let data_for_pdf = {};
             data_for_pdf.prescriptions = prescriptionsData;
             data_for_pdf.appointment_id = appointment_id;
@@ -129,6 +137,41 @@ const submitPrescription = (req, res) => {
                     throw new HandleError("Prescription cannot be added to the appointment.", 400)
                 }
             })
+        }).catch((e) => {
+        return errorResponse(e, res, e.code);
+    });
+}
+
+const deletePrescription = (req, res) => {
+    const translator = translate(req.headers.lang);
+    const validations = {
+        appointment_id: "required",
+    };
+    validate(req.body, validations)
+        .then(async (matched) => {
+            if (!matched.status) {
+                throw new HandleError(matched.data, 422);
+            }
+            let {appointment_id} = req.body ;
+            let appointment = await Appointment.findOne({
+                _id: appointment_id,
+            })
+            if (appointment) {
+                //Deleting prescription doc file from s3 bucket
+                let del_file_res = await deleteFile(appointment.presc_url, 'prescriptions_pdf');
+                //Deleting prescriptions from the prescription collection corresponding the appointment.
+                await Prescription.deleteMany({_id: {$in: appointment.prescription}});
+                //Deleting prescriptions data from the appointment collection corresponding the appointment.
+                await Appointment.findOneAndUpdate({_id: appointment_id}, {presc_url: null, prescription:null})
+                return jsonResponse(
+                    res,
+                    null,
+                    translator.__("Prescription has been deleted successfully."),
+                    200
+                );
+            } else {
+                throw new HandleError("Invalid appointment id.", 400);
+            }
         }).catch((e) => {
         return errorResponse(e, res, e.code);
     });
@@ -171,10 +214,26 @@ const deleteSavedTemplate = (req, res) => {
     });
 }
 
+const getAboutUsContent = (req, res) => {
+    const translator = translate(req.headers.lang);
+    return Configuration.find({name : "about_us"}, {value:1, title:1}).then(aboutUs => {
+        return jsonResponse(
+            res,
+            aboutUs,
+            translator.__("retrieve_success"),
+            200
+        );
+    }).catch((e) => {
+        return errorResponse(e, res, e.code);
+    });
+}
+
 module.exports = {
     index,
     saveAsTemplate,
     submitPrescription,
     getSavedTemplate,
-    deleteSavedTemplate
+    deleteSavedTemplate,
+    deletePrescription,
+    getAboutUsContent,
 }

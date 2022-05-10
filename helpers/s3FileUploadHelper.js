@@ -24,6 +24,14 @@ const getFolder = (type) => {
         case "prescriptions_pdf":
             folder = "documents/prescriptions_pdf"
             break
+        case "signatures":
+            folder = "documents/signatures"
+            acl = 'private';
+            break
+        case "certificates":
+            folder = "documents/certificates"
+            acl = 'private';
+            break
     }
     return {bucket:process.env.S3_BUCKET_NAME+folder,acl:acl}
 }
@@ -70,8 +78,22 @@ const deleteFile = (fileUrl, type) => {
 
 };
 
+/**
+ * function to get doc url/download a file from S3 bucket.
+ */
+const getDocUrlFromS3 = (type, fileName) => {
+    let customParams = getFolder(type)
+    const params = {
+        Bucket: customParams.bucket,
+        Key: fileName,
+        Expires:300
+    };
+    return s3.getSignedUrl('getObject', params);
+};
+
 module.exports = {
     uploadFile,
     deleteFile,
-    getPresignedUrl
+    getPresignedUrl,
+    getDocUrlFromS3,
 }

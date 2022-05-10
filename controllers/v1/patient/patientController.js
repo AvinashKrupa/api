@@ -20,22 +20,38 @@ import {addByInfo, getLookupForByTags, setAttributes} from "../../../helpers/mod
 import {
     getLookupAggregateForDoctor,
     handleCancellation,
-    prepareAppointmentModel
+    prepareAppointmentModel,
+    getPatientAppointmentStats
 } from "../../../helpers/appointmentHelper";
 import {getConsultantAggregate} from "../../../helpers/consultantHelper";
 import Patient from "../../../db/models/patient";
 import {deleteFile, uploadFile} from "../../../helpers/s3FileUploadHelper";
 import Report from "../../../db/models/report";
 import mongoose from "mongoose";
+import { async } from "regenerator-runtime";
+
+import {createAdminLog} from "../../../helpers/adminlogHelper";
+import {getDateTimeFromDate, diffOfTwoTimeInMinutes} from "../../../helpers/timeHelper";
+import {findBookedSlots} from "../../../helpers/appointmentHelper";
+import {getShiftSpecificSlots} from "../../../helpers/slotHelper";
+import User from "../../../db/models/user";
 
 const ObjectId = mongoose.Types.ObjectId;
 let moment = require('moment-timezone');
 const index = (req, res) => {
     const translator = translate(req.headers.lang);
-    Patient.find({}).then(patients => {
+    Patient.find({}).then( async(patients) => {
+        let patientsData = [];
+        for await (let patient of patients) {
+            let patientObj = JSON.parse(JSON.stringify(patient));
+            let appointment_stats;
+            appointment_stats = await getPatientAppointmentStats(patient._id);
+            patientObj.appointment_stats = appointment_stats ;
+            patientsData.push(patientObj);
+        }
         return jsonResponse(
             res,
-            patients,
+            patientsData,
             translator.__("retrieve_success"),
             200
         );
@@ -43,6 +59,120 @@ const index = (req, res) => {
         return errorResponse(e, res, e.code);
     });
 }
+
+const index2 = async (req, res) => {
+    const translator = translate(req.headers.lang);
+    let {timezone = "Asia/Calcutta"} = req.headers
+    let {sort_key = "first_name", sort_order = "asc", limit, page = 1, filter} = req.body
+
+    let skipAndLimit = []
+    if (typeof limit !== 'undefined') {
+        skipAndLimit = [{$skip: limit * (page - 1)},
+            {$limit: limit}]
+    } else {
+        skipAndLimit = [{$skip: 0}]
+    }
+
+    let matchOpts = {}
+    if (filter) {
+        if (filter.name) {
+            let regexExp = new RegExp(filter.name.replace(" ", "|"), "ig")
+            let usersData = await User.find({first_name: { $regex: regexExp }}, { _id: 1 });
+            usersData = usersData.map(user => {
+                return user._id;
+            })
+            matchOpts = {...matchOpts,  "user_id": {$in: usersData}}
+        }
+        if (filter.mobile_number) {
+            let usersData = await User.find({mobile_number: { $regex: filter.mobile_number }}, { _id: 1 });
+            usersData = usersData.map(user => {
+                return user._id;
+            })
+            matchOpts = {...matchOpts,  "user_id": {$in: usersData}}
+        }
+
+        if (filter.status) {
+            let statusArray = getArrayFromFilterParams(filter.status, false);
+            if (statusArray.length > 0)
+                matchOpts = {...matchOpts,"status": {$in: statusArray}}
+        }
+    }
+
+    return Patient.aggregate([
+        {$match: matchOpts},
+        {
+            $lookup: {
+                from: "users",
+                let: {userId: "$$ROOT.user_id"},
+                pipeline: [
+                    {$match: {$expr: {$eq: ["$_id", "$$userId"]}},},
+                    {
+                        $lookup: {
+                            from: 'languages',
+                            localField: 'language',
+                            foreignField: '_id',
+                            as: 'language'
+
+                        }
+                    },
+                    {$project: {_id: 1, dp: 1,email:1, mobile_number:1,country_code:1, dob:1, language:1, gender:1, first_name:1, last_name:1}}
+                ],
+                as: "user_id"
+            }
+        },
+        {$unwind: "$user_id"},
+        {
+            $project: {
+                user_id: 1,
+                huno_id:1,
+                med_cond:1,
+                height:1,
+                dimen_type:1,
+                weight:1,
+                other_med_cond:1,
+                status: 1,
+                address:1,
+                relation:1,
+                relative_name:1,
+                notes:1,
+                created_at: 1,
+                updated_at: 1,
+                created_by: 1,
+                updated_by: 1,
+            }
+        }, {
+            $sort: {
+                [sort_key]: sort_order === "asc" ? 1 : -1
+            }
+        },
+        {
+            $facet: {
+                metadata: [{$count: "total"}],
+                docs: skipAndLimit
+            }
+        }
+    ]).then( async(results) => {
+        let result = results[0]
+        let finalResult = {};
+        for await (let doc of result.docs) {
+            let appointment_stats = await getPatientAppointmentStats(doc._id);
+            doc.appointment_stats = appointment_stats;
+        }
+        finalResult.docs = result.docs
+        finalResult.total = result && result.metadata[0] ? result.metadata[0].total : 0;
+        finalResult.limit = limit;
+        finalResult.page = page;
+        finalResult.sort_key = sort_key;
+        finalResult.sort_order = sort_order;
+        return jsonResponse(
+            res,
+            finalResult,
+            translator.__("retrieve_success"),
+            200
+        );
+    }).catch(error => errorResponse(error, res));
+}
+
 /**
  *
  * @param req
@@ -66,7 +196,7 @@ const getHomeContent = async (req, res) => {
 };
 const getTopConsultants = async (req, res) => {
     const translator = translate(req.headers.lang);
-
+    let {timezone = "Asia/Calcutta"} = req.headers
     try {
         let {sort_key = "first_name", sort_order = "asc", limit = 10, page = 1} = req.body
         req.body.filter = {
@@ -76,10 +206,15 @@ const getTopConsultants = async (req, res) => {
         }
         let aggregateRequest = getConsultantAggregate(req.body)
         Doctor.aggregate([aggregateRequest])
-            .then(results => {
+            .then( async (results) => {
                 let result = results[0]
                 let finalResult = {};
                 finalResult.docs = result.docs;
+                for await (let doc of finalResult.docs) {
+                    let resData = await __checkDoctorAvailabilityMsg(doc._id, timezone)
+                    doc.next_avail_slot_time = resData.next_avail_slot_time ;
+                }
+
                 finalResult.total = result && result.metadata[0] ? result.metadata[0].total : 0;
                 finalResult.limit = limit;
                 finalResult.page = page;
@@ -97,6 +232,53 @@ const getTopConsultants = async (req, res) => {
     }
 
 };
+
+const __checkDoctorAvailabilityMsg = async(doctorData, timezone) => {
+            let resData = {};
+            let currentDate = new Date().toJSON().slice(0, 10);
+            let momentOfDate = getDateTimeFromDate(currentDate, timezone) 
+            if (!momentOfDate.isValid()) {
+                throw new HandleError("Please provide valid date", 400)
+            }
+            let day = momentOfDate.format("ddd").toLowerCase()
+            let key = "avail.day." + day
+            let doctor =  await Doctor.findOne({_id: doctorData._id, [key]: true}, {avail: 1});
+            let shifts = {
+                shift1: [],
+                shift2: []
+            }
+            if (doctor) {
+                let patient_id = null;
+                let docSlots = await findBookedSlots([doctor._id], momentOfDate, timezone, patient_id)
+                let slotsAlreadyBooked = docSlots[doctor._id] || []
+                let lookAhead = true;
+                let shiftData ;
+                shifts = await getShiftSpecificSlots(doctor, slotsAlreadyBooked, momentOfDate, timezone, lookAhead);
+                shiftData = shifts.shift1.find(obj => obj.is_avail ===true);
+                let utcMoment = moment.utc();
+                let startDateTime = new Date( utcMoment.format());
+                startDateTime = getTimezonedDateFromUTC(startDateTime, timezone, "YYYY-MM-DD HH:mm:ss");
+                let endDateTime = moment(new Date()).format('YYYY-MM-DD');
+                let timeData;
+                if(shiftData) {
+                    endDateTime = endDateTime + ' '+ shiftData.start + ':00';
+                    timeData = diffOfTwoTimeInMinutes(startDateTime, endDateTime);
+                    resData.next_avail_slot_time = timeData;
+                } else {
+                    shiftData = shifts.shift2.find(obj => obj.is_avail ===true);
+                    if(shiftData) {
+                        endDateTime = endDateTime + ' '+ shiftData.start + ':00';
+                        timeData = diffOfTwoTimeInMinutes(startDateTime, endDateTime);
+                        resData.next_avail_slot_time = timeData;
+                    } else {
+                        resData.next_avail_slot_time = 0;
+                    }
+                }
+            } else {
+                resData.next_avail_slot_time = 0;
+            }
+            return resData;          
+}
 
 
 const bookAppointment = async (req, res) => {
@@ -371,9 +553,21 @@ const changeStatus = async (req, res) => {
                 throw new HandleError(matched.data, 422);
             }
             let {status, patient_id} = req.body
+            //Using to record the log for the admin who is changing the patient status.
             return Patient.findOneAndUpdate({_id: patient_id}, {
                 status: status, updated_by: res.locals.user
-            }, {new: true}).then(result => {
+            }, {new: true}).then( async(result) => {
+                if(status == "active") {
+                    let logData = {};
+                    logData.user_id = res.locals.user._id;
+                    logData.module_name = config.constants.LOG_MSG_MODULE_NAME.PATIENT_PROFILE
+                    logData.title = config.constants.LOG_MSG_TITLE.PATIENT_PROFILE_APPROVAL;
+                    logData.message = config.constants.LOG_MESSAGE.PATIENT_PROFILE_APPROVAL;
+                    logData.message = logData.message.replace('{{admin}}', res.locals.user.first_name +' '+ res.locals.user.last_name);
+                    logData.message = logData.message.replace('{{patient_name}}', result.user_id.first_name +' '+ result.user_id.last_name);
+                    logData.record_id =  result._id;
+                    await createAdminLog(logData);
+                }
                 return jsonResponse(
                     res,
                     result,
@@ -472,7 +666,7 @@ const getPrescriptions = (req, res) => {
             let {patient_id, status = "completed"} = req.body
             if (!patient_id)
                 patient_id = res.locals.user.selected_profile_id
-            let matchCond = {patient: ObjectId(patient_id), status: status, presc_url: {$ne: ""}}
+            let matchCond = {patient: ObjectId(patient_id), status: status, presc_url: {$ne: null}}
 
 
             return Appointment.aggregate([
@@ -500,9 +694,11 @@ const getPrescriptions = (req, res) => {
                     $project: {
                         name: {$concat: ["$doctor.first_name", " ", "$doctor.last_name"]},
                         url: "$presc_url",
+                        doctor_id: "$doctor._id",
                         appointment_id: "$_id",
                         created_at: 1,
-                        updated_at: 1
+                        updated_at: 1,
+                        presc_added_at:"$updated_at"
                     }
                 },
                 {
@@ -636,8 +832,34 @@ const getCountOfCancelAppointment = (req, res) => {
     });
 }
 
+const getDetails = (req, res) => {
+    const translator = translate(req.headers.lang);
+    const validations = {
+        patient_id: "required",
+    };
+    validate(req.body, validations)
+    .then((matched) => {
+        if (!matched.status) {
+            throw new HandleError(matched.data, 422);
+        }
+        let {patient_id } = req.body ;
+        Patient.find({_id: patient_id}).then(patient => {
+            let resData = patient[0];
+            return jsonResponse(
+                res,
+                resData,
+                translator.__("retrieve_success"),
+                200
+            );
+        })
+    }).catch((e) => {
+        return errorResponse(e, res, e.code);
+    });
+}
+
 module.exports = {
     index,
+    index2,
     getHomeContent,
     getTopConsultants,
     bookAppointment,
@@ -649,5 +871,7 @@ module.exports = {
     getReports,
     getPrescriptions,
     deleteReport,
-    getCountOfCancelAppointment
+    getCountOfCancelAppointment,
+    getDetails,
+    __checkDoctorAvailabilityMsg
 }

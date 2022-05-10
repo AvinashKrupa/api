@@ -30,6 +30,11 @@ const schema = new mongoose.Schema({
     height: {
         type: String,
     },
+    dimen_type: {
+        type: String,
+        enum:["ft","cm"],
+        default:"cm"
+    },
     weight: {
         type: String,
     },
@@ -58,6 +63,15 @@ const schema = new mongoose.Schema({
     },
     meet_token:{
         type:String
+    },
+    relation: {
+        type: String
+    },
+    relative_name : {
+        type: String
+    },
+    notes:{
+        type: String
     }
 }, {...getCommonOptions()});
 

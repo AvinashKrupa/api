@@ -4,7 +4,6 @@ import {cryptPassword} from "../../helpers/hashHelper";
 import * as config from "../../config/config";
 
 const schema = new mongoose.Schema({
-
     first_name: {
         type: String,
         required: true,
@@ -69,14 +68,13 @@ const schema = new mongoose.Schema({
         type: String,
         default: ''
     }
-
 }, {...getCommonOptions()});
 
 addBy(schema)
 
-schema.virtual('setPassword').set(function (password) {
+/* schema.virtual('setPassword').set(function (password) {
     this.password = cryptPassword(password)
-});
+}); */
 schema.set('toJSON', {
     virtuals: true,
     transform: function (doc, ret, options) {
@@ -100,6 +98,6 @@ schema.pre('save', function (next) {
     }
     return next();
 });
+schema.index({mobile_number: 1, country_code: 1}, {unique: 1});
 const User = mongoose.model('User', schema);
-
 export default User;

@@ -32,6 +32,10 @@ const schema = new mongoose.Schema({
     add_comments: {
         type: String
     },
+    appointment:{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Appointment",
+    },
     dosage: {
         dosage_text: {
             type: String

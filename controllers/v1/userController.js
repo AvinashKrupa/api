@@ -2,9 +2,11 @@ import {translate} from "../../helpers/multilingual";
 import {errorResponse, jsonResponse} from "../../helpers/responseHelper";
 import * as config from "../../config/config";
 import User from "../../db/models/user";
-import {getAdditionalInfo, updateDoctor, updatePatient} from "../../helpers/userHelper";
+import {getAdditionalInfo, updateDoctor, updatePatient, updateDoctor2} from "../../helpers/userHelper";
 import {validate} from "../../helpers/validator";
 import {HandleError} from "../../helpers/errorHandling";
+import Doctor from "../../db/models/doctor";
+import Patient from "../../db/models/patient";
 
 /**
  * List all users
@@ -49,9 +51,23 @@ const getUserProfile = async (req, res) => {
             if (!matched.status) {
                 throw new HandleError(matched.data, 422);
             }
-            let {user_id, type} = req.body
-            let additional_info, user
-            user = await User.findOne({_id: user_id})
+            let {user_id, type, profile_type} = req.body
+            let additional_info, user, patient, doctor;
+            switch (profile_type) {
+                case 1:
+                  patient = await Patient.findOne({_id: user_id})
+                  user = await User.findOne({_id: patient.user_id})
+                  user_id = patient.user_id;
+                  break;
+                case 2:
+                  doctor = await Doctor.findOne({_id: user_id})   
+                  user = await User.findOne({_id: doctor.user_id})
+                  user_id = doctor.user_id;
+                  break;
+                default:
+                  user = await User.findOne({_id: user_id})
+                  break;
+            }
             if (type) {
                 additional_info = await getAdditionalInfo(user_id, type, {load_doctor_stats: true})
             }
@@ -102,9 +118,47 @@ const updateProfile = async (req, res) => {
         .catch((e) => {
             return errorResponse(e, res, e.code);
         });
+};
+
+const updateProfile2 = async (req, res) => {
+    const translator = translate(req.headers.lang);
+    req.body = JSON.parse(req.body.user_data);
+    let {timezone = "Asia/Calcutta"} = req.headers
+    const validations = {};
+    validate(req.body, validations)
+        .then(async (matched) => {
+            if (!matched.status) {
+                throw new HandleError(matched.data, 422);
+            }
+            let {user_id, type} = req.body
+            if (!user_id)
+                user_id = res.locals.user._id
+            if (!type)
+                type = res.locals.user.selected_profile
+            let user
+            switch (type) {
+                case config.constants.USER_TYPE_PATIENT:
+                    user = await updatePatient(user_id, req.body, res.locals.user)
+                    break;
+                case config.constants.USER_TYPE_DOCTOR:
+                    user = await updateDoctor2(user_id, req.body, res.locals.user, timezone, req.files)
+            }
+
+            return jsonResponse(
+                res,
+                user,
+                translator.__("update_success"),
+                200
+            );
+
+        })
+        .catch((e) => {
+            return errorResponse(e, res, e.code);
+        });
 
 
 };
+
 const updateDeviceToken = async (req, res) => {
     const translator = translate(req.headers.lang);
     const validations = {
@@ -138,5 +192,6 @@ module.exports = {
     getProfile,
     getUserProfile,
     updateProfile,
-    updateDeviceToken
+    updateDeviceToken,
+    updateProfile2,
 }

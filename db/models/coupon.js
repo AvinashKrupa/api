@@ -45,7 +45,13 @@ const schema = new mongoose.Schema({
         date: {
             type: Date,
         }
-    }]
+    }],
+    coupon_type: {
+        type: String,
+        enum: ["user", 'clinic'],
+        default: 'user',
+        required: true,
+    },
 }, {...getCommonOptions()});
 
 addBy(schema)

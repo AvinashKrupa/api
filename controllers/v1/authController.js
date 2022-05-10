@@ -6,11 +6,12 @@ import {createSession, endSession, endSessionsAndCreateNew, getTempAccessToken} 
 import {sendVerificationOtp, verifyOTP} from "../../helpers/twilioHelper";
 import {authenticate, emailPassAuthenticate} from "../../middlewares/authentication";
 import * as config from "../../config/config";
-import {createDoctor, createPatient, getAdditionalInfo} from "../../helpers/userHelper";
+import {createDoctor, createPatient, getAdditionalInfo, createDoctor2, createAdminUser} from "../../helpers/userHelper";
 import User from "../../db/models/user";
 import {setAttributes} from "../../helpers/modelHelper";
 import Doctor from "../../db/models/doctor";
 import Patient from "../../db/models/patient";
+import {cryptPassword} from "../../helpers/hashHelper";
 
 /**
  * Send out an otp to specified mobile number using twilio
@@ -38,6 +39,14 @@ const sendOtp = (req, res) => {
                 && type.toString() === config.constants.USER_TYPE_DOCTOR) {
                 throw new HandleError("The number already exists as a patient. Please use different mobile number.", 400)
             }
+            
+            if (user
+                && user.profile_types.length === 1
+                && user.profile_types.includes(config.constants.USER_TYPE_DOCTOR)
+                && type.toString() === config.constants.USER_TYPE_PATIENT) {
+                throw new HandleError("The number already exists as a doctor. Please use different mobile number.", 400)
+            } 
+             
             if(user){
                 let additionalProf
                 switch (type.toString()) {
@@ -49,8 +58,7 @@ const sendOtp = (req, res) => {
                         break;
                 }
                 if(additionalProf&&additionalProf.status!=="active"){
-                    return errorResponse({data:
-                            {call:"+919902677868",email:"support@livemed.io"},message:`Your profile is ${additionalProf.status}. Please contact support.`},res,400)
+                    return errorResponse({data:{call:"+918001156789",email:"support@livemed.io"},message:`Your profile is ${additionalProf.status}. Please contact support.`},res,400)
                 }
             }
 
@@ -116,10 +124,86 @@ const verifyOtp = (req, res) => {
 
 const registerUser = (req, res) => {
     const translator = translate(req.headers.lang);
+    let {test = false} = req.headers;
+    let validations;
+    if(req.body.type.toString() === config.constants.USER_TYPE_PATIENT) {
+        validations = {
+            first_name: "required",
+            //last_name: "required",
+            mobile_number: "required",
+            country_code: "required",
+            type: "required",
+            device_type: "required",
+            gender: "required"
+        };
+    } else {
+        validations = {
+            first_name: "required",
+            //last_name: "required",
+            mobile_number: "required",
+            country_code: "required",
+            type: "required",
+            device_type: "required",
+            email: "required",
+            gender: "required"
+        };
+    }
+
+    validate(req.body, validations)
+        .then(async (matched) => {
+            if (!matched.status) {
+                throw new HandleError(matched.data, 422);
+            }
+            let type = req.body.type.toString();
+            let user = await User.findOne({
+                mobile_number: req.body.mobile_number,
+                country_code: req.body.country_code,
+            })
+            let existing = user && user.profile_types.includes(type)
+            if (existing) {
+                throw new HandleError("User already exists in system", 400)
+            } else if (!user) {
+                user = new User()
+                setAttributes(req.body, res.locals.user, user, true)
+                user.status = "active"
+            } else if (user
+                && user.profile_types.includes(config.constants.USER_TYPE_PATIENT)
+                && type === config.constants.USER_TYPE_DOCTOR) {
+                throw new HandleError("Patient cannot register as a doctor", 400)
+            }
+            switch (type) {
+                case config.constants.USER_TYPE_PATIENT:
+                    user = await createPatient(user, req.body, res.locals.user)
+                    break
+                case config.constants.USER_TYPE_DOCTOR:
+                    user = await createDoctor(user, req.body, res.locals.user, test, false)
+            }
+
+            if (!user) {
+                throw new HandleError("Error occurred in registering user", 400)
+            }
+            let additional_info = await getAdditionalInfo(user._id, type.toString())
+            return authenticate(user.mobile_number, user.country_code, type).then(userSessionObj => {
+                return jsonResponse(
+                    res,
+                    {...userSessionObj, additional_info: additional_info},
+                    translator.__("create_success"),
+                    200
+                );
+            })
+        })
+        .catch((e) => {
+            return errorResponse(e, res, e.code);
+        });
+};
+
+const registerUser2 = (req, res) => {
+    req.body = JSON.parse(req.body.user_data);
+    const translator = translate(req.headers.lang);
     let {test = false} = req.headers
     let validations = {
         first_name: "required",
-        last_name: "required",
+        //last_name: "required",
         mobile_number: "required",
         country_code: "required",
         type: "required",
@@ -154,7 +238,7 @@ const registerUser = (req, res) => {
                     user = await createPatient(user, req.body, res.locals.user)
                     break
                 case config.constants.USER_TYPE_DOCTOR:
-                    user = await createDoctor(user, req.body, res.locals.user, test)
+                    user = await createDoctor2(user, req.body, res.locals.user, test, false, req.files)
 
             }
 
@@ -213,6 +297,59 @@ const refreshAccessToken = async (req, res) => {
         return errorResponse(e, res, e.code);
     });
 };
+
+const registerAdminUser = (req, res) => {
+    const translator = translate(req.headers.lang);
+    let validations = {
+        first_name: "required",
+        //last_name: "required",
+        mobile_number: "required",
+        country_code: "required",
+        type: "required",
+        email: "required",
+        password: "required",
+    };
+    validate(req.body, validations)
+        .then(async (matched) => {
+            if (!matched.status) {
+                throw new HandleError(matched.data, 422);
+            }
+            let type = req.body.type.toString();
+            if(type!== config.constants.USER_TYPE_ADMIN) {
+                return errorResponse("Invalid user type!, please input correct admin user type", res, 400);
+            }
+
+            let matchCond = {email: req.body.email, profile_types:{$elemMatch:{$eq:"3"}}}
+            let user = await User.findOne(matchCond)
+            let existing = user && user.profile_types.includes(type)
+            if (existing) {
+                throw new HandleError("User already exists in system", 400)
+            } else if (!user) {
+                user = new User()
+                setAttributes(req.body, res.locals.user, user, true)
+                user.status = "active"
+                user.role_id = "612362ab40eef4f51b11e4d9";
+                user.password = cryptPassword(req.body.password);
+            } 
+            user = await createAdminUser(user);
+            if (!user) {
+                throw new HandleError("Error occurred in registering user", 400)
+            }
+            let additional_info = await getAdditionalInfo(user._id, type.toString())
+            return authenticate(user.mobile_number, user.country_code, type).then(userSessionObj => {
+                return jsonResponse(
+                    res,
+                    {...userSessionObj, additional_info: additional_info},
+                    translator.__("create_success"),
+                    200
+                );
+            })
+        })
+        .catch((e) => {
+            return errorResponse(e, res, e.code);
+        });
+};
+
 const adminLogin = async (req, res) => {
     const translator = translate(req.headers.lang);
     const validations = {
@@ -226,11 +363,11 @@ const adminLogin = async (req, res) => {
             }
             let {email, password} = req.body
             return emailPassAuthenticate(email, password).then(user => {
-                if (user && user.role_id == "612362ab40eef4f51b11e4d9")
+                if (user && user.role_id == "612362ab40eef4f51b11e4d9") {
                     return createSession(user).then(result => {
                         return jsonResponse(res, result, translator.__("successful_login"), 200)
                     })
-                else {
+                } else {
                     return errorResponse("Invalid email or password", res, 400);
                 }
             })
@@ -271,5 +408,7 @@ module.exports = {
     refreshAccessToken,
     registerUser,
     adminLogin,
-    login
+    login,
+    registerUser2,
+    registerAdminUser
 };

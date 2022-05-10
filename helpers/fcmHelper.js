@@ -35,3 +35,35 @@ export const sendPushNotification = (payload) => {
         //}
     })
 }
+
+// Using to send push notification to a multiple devices.
+export const sendPushNotificationToMultiple = (payload) => {
+    if (payload.device_tokens.length==0) {
+        console.error("No device token found to send notification")
+        return Promise.resolve()
+    }
+    return new Promise((resolve, reject) => {
+        //if(payload.device_type==config.constants.DEVICE_TYPE.IOS || payload.device_type==config.constants.DEVICE_TYPE.ANDROID) {
+        let message = {
+            tokens: payload.device_tokens,
+            //collapse_key: 'your_collapse_key',
+            notification: {
+                title: payload.notification_title,
+                body: payload.notification_body
+            },
+            data: payload.notification_data
+        };
+        // return resolve("FCM not added")
+        fcm_instance.send(message, (err, response) =>{
+            if (err) {
+                console.error("Something has gone wrong!", JSON.stringify(err));
+                //reject(err);
+                resolve()
+                // return Promise.resolve()
+            } else {
+                resolve(response);
+            }
+        });
+        //}
+    })
+}

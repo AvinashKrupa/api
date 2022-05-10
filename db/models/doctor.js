@@ -47,7 +47,7 @@ const qualifSchema = new mongoose.Schema({
     currency: {
         type: String,
         default: "INR"
-    }
+    },
 })
 
 const availSchema = new mongoose.Schema({
@@ -90,7 +90,6 @@ const schema = new mongoose.Schema({
         ref: "User",
         required: true,
         unique: true,
-
     },
     huno_id: {
         type: String,
@@ -119,7 +118,25 @@ const schema = new mongoose.Schema({
     },
     meet_token: {
         type: String
-    }
+    },
+    set_consultation: {
+        type: Number,
+    },
+    relation: {
+        type: String
+    },
+    relative_name : {
+        type: String
+    },
+    digital_signature_url:{
+        type: String
+    },
+    medical_cert_url:{
+        type: String
+    },
+    notes:{
+        type: String
+    },
 }, {...getCommonOptions()});
 
 addBy(schema)
@@ -136,7 +153,7 @@ schema.pre('save', function (next) {
 
     User.findOne({
         "_id": this.user_id
-    }, {first_name: 1, last_name: 1}).then(user => {
+    }, {first_name: 1, last_name: 1 }).then(user => {
         if (user) {
             this.first_name = user.first_name
             this.last_name = user.last_name

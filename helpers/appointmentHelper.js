@@ -23,7 +23,7 @@ export const handleCancellation = async (appointment, localUser) => {
     if (patient.planned_cancellation === 3) {
         if (patient.suspended_at) {
             patient.status = 'banned';
-            errorMessage = `Your account has been banned due to violation of ${process.env.APP_NAME} terms. Please contact support.`
+            errorMessage = "Your account has been banned due to violation of LiveMedic terms. Please contact support."
         } else {
             patient.status = 'suspended';
             patient.suspended_at = new Date();
@@ -60,7 +60,7 @@ export const handleCancellation = async (appointment, localUser) => {
     try {
         await initiateNotifications(appointment, config.constants.NOTIFICATION_TYPE.APPOINTMENT_CANCELLATION)
     } catch (e) {
-        console.log("error>>", e)
+        //console.log("error>>", e)
     }
     if (!errorMessage)
         patient.planned_cancellation = patient.planned_cancellation ? patient.planned_cancellation + 1 : 1
@@ -126,6 +126,21 @@ export const getLookupAggregateForPatient = (additionalUserProjObj = {}) => {
         }
     }
 }
+
+export const getLookupAggregateForCoupon = (additionalUserProjObj = {}) => {
+    return {
+        $lookup: {
+            from: "coupons",
+            let: {baseId: "$coupon"},
+            pipeline: [
+                {$match: {$expr: {$eq: ["$_id", "$$baseId"]}},},
+                {$project: {_id: 1, code: 1, desc: 1, discount_pct: 1, coupon_type:1}},
+            ],
+            as: "coupon"
+        }
+    }
+}
+
 export const getLookupAggregateForDoctor = (baseId = "$doctor", as = "doctor", baseAsArray = false) => {
     let matchOp = "$eq"
     if (baseAsArray)
@@ -262,6 +277,37 @@ export const getAppointmentStats = (doctor_id) => {
         return Promise.resolve(appointment_stats)
     })
 }
+
+export const getPatientAppointmentStats = (patient_id) => {
+    let appointment_stats = {
+        "pending": 0,
+        "reserved": 0,
+        "completed": 0,
+        "scheduled": 0,
+        "ongoing": 0,
+        "cancelled": 0,
+    }
+    return Appointment.aggregate([
+        {
+            $match: {patient: ObjectId(patient_id)}
+        },
+        {
+            $group: {
+                _id: "$status",
+                count: {$sum: 1}
+            }
+        }
+    ]).then(results => {
+        results.forEach(result => {
+            if (appointment_stats.hasOwnProperty(result._id))
+                appointment_stats[result._id] = result.count
+        })
+        return Promise.resolve(appointment_stats)
+    }).catch(e => {
+        return Promise.resolve(appointment_stats)
+    })
+}
+
 export const prepareAppointmentModel = async (reqBody) => {
     let {date, doctor_id, slot_id, reason, slot, complaints, code, patient_id, timezone, created_by, payment_mode} = reqBody
     let momentOfDate = getDateTimeFromDate(date, timezone)

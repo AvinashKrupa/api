@@ -6,12 +6,18 @@ export const getFinalAmount = async (fee, code, patientId) => {
     })
     let discount = 0
 
-    let final_amount = fee
+    var final_amount = fee
     if (!coupon) {
         return Promise.reject("Invalid coupon code.")
     } else {
         switch (coupon.status) {
-            case "active":
+            case 'active':
+            {
+                if(coupon.coupon_type ==='clinic') {
+                    discount = (coupon.discount_pct * fee / 100)
+                    final_amount = fee - discount
+                    return Promise.resolve({final_amount, coupon, discount})
+                } 
                 if (coupon.usages && coupon.usages.length > 0) {
                     let existing = coupon.usages.find(usage => {
                         return usage.patient.toString() == patientId.toString()
@@ -21,8 +27,9 @@ export const getFinalAmount = async (fee, code, patientId) => {
                     }
                 }
                 discount = (coupon.discount_pct * fee / 100)
-                final_amount = fee - discount
-                return Promise.resolve({final_amount, coupon, discount})
+                final_amount = fee - discount ;
+                return Promise.resolve({final_amount, coupon, discount})   
+            }
             case "expired":
                 return Promise.reject("Coupon expired.")
             default:

@@ -11,7 +11,8 @@ const index = (req, res) => {
     const translator = translate(req.headers.lang);
     let {showAll = false} = req.query
     let matchCond = showAll ? {} : {enabled: true}
-    Slider.find(matchCond).sort({title: 1}).then(sliders => {
+    Slider.find(matchCond).populate("speciality", "speciality_id")
+    .sort({title: 1}).then(sliders => {
         return jsonResponse(
             res,
             sliders,
@@ -31,7 +32,7 @@ const addNew = (req, res) => {
     const validations = {
         title: "required",
         type: "required",
-        user_type: "required"
+        user_type: "required",
     };
     validate(req.body, validations)
         .then((matched) => {
@@ -65,7 +66,7 @@ const addNewMulti = async (req, res) => {
         title: "required",
         type: "required",
         user_type: "required",
-        device_type: "required"
+        device_type: "required",
     };
     validate(req.body, validations)
         .then(async (matched) => {
@@ -105,7 +106,7 @@ const update = (req, res) => {
         title: "required",
         type: "required",
         user_type: "required",
-        _id: "required"
+        _id: "required",
     };
     validate(req.body, validations)
         .then(async (matched) => {
@@ -131,9 +132,11 @@ const update = (req, res) => {
                         model.image = result.Location
                 }))
             }
-            await Promise.all(promises)
+            await Promise.all(promises);
+            if (req.body.speciality_id === "" || req.body.speciality_id === 'null') {
+                model.speciality_id = undefined;
+            }
             model = await model.save()
-
             return jsonResponse(
                 res,
                 model,

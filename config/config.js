@@ -34,6 +34,7 @@ module.exports = {
             DOCTOR_PROFILE_APPROVAL: 7,
             PARTICIPANT_DID_NOT_JOIN: 8,
             APPOINTMENT_BOOKING_FAILED: 9,
+            FROM_ADMIN : 12,
         },
         NOTIFICATION_MESSAGE: {
             APPOINTMENT_BOOKING_PATIENT: 'Your Appointment has been scheduled with Doctor {{doctor}} at {{date_time}}',
@@ -61,6 +62,44 @@ module.exports = {
             APPOINTMENT_UPDATED: '{{appointment_id}} : Appointment Updated',
             DOCTOR_PROFILE_APPROVAL: `Congratulations your account has been approved, Welcome Onboard to the ${process.env.APP_NAME} Family`,
             DOCTOR_PROFILE_REJECTED: 'Your account has been rejected, Please contact support'
+        },
+        LOG_MSG_MODULE_NAME :{
+            APPOINTMENT: 'Appointment',
+            COUPON: 'Coupon',
+            DOCTOR_PROFILE: 'Doctor',
+            PATIENT_PROFILE: 'Patient',
+        },
+        LOG_MSG_TITLE: {
+            APPOINTMENT_BOOKED: 'Appointment Booked',
+            APPOINTMENT_RESCHEDULED: 'Appointment Rescheduled',
+            APPOINTMENT_CANCELED: 'Appointment Canceled ',
+            COUPON_CREATED: 'Coupon Created',
+            COUPON_STATUS_CHANGED: 'Coupon Status Changed',
+
+            DOCTOR_PROFILE_CREATED: 'Doctor Profile Created',
+            DOCTOR_PROFILE_APPROVAL: 'Doctor Profile Approved',
+            DOCTOR_FEE_UPDATED: 'Doctor Fee Updated',
+            DOCTOR_SPECIALTY_UPDATED: 'Doctor Specialty Changed',
+            DOCTOR_PROFILE_UPDATED: 'Doctor Profile Updated',
+
+            PATIENT_PROFILE_CREATED: 'Patient Profile Created',
+            PATIENT_PROFILE_APPROVAL: 'Patient Profile Approved',
+        },
+        LOG_MESSAGE: {
+            APPOINTMENT_BOOKED: 'The user {{admin}} has booked an appointment ID:{{appointment_id}} with {{doctor_name}} for the patient {{patient_name}}.',
+            APPOINTMENT_RESCHEDULED: 'The User {{admin}} has rescheduled the appointment ID:{{appointment_id}}',
+            APPOINTMENT_CANCELED: 'The User {{admin}} has canceled the appointment ID:{{appointment_id}}',
+            COUPON_CREATED: 'The User {{admin}} has created a coupon code {{coupon_code_name}} for {{for_use}} usage.',
+            COUPON_STATUS_CHANGED: 'The User {{admin}} {{status}} the coupon code.',
+
+            DOCTOR_PROFILE_CREATED: 'The user {{admin}} has created a profile for {{doctor_name}}',
+            DOCTOR_PROFILE_APPROVAL: '{{admin}} has approved a doctor {{doctor_name}} profile.',
+            DOCTOR_FEE_UPDATED: 'The User {{admin}} has changed the consultation fees from {{old_fee}} to {{new_fee}} for the doctor {{doctor_name}}.',
+            DOCTOR_SPECIALTY_UPDATED: 'The User {{admin}} has updated the specialty for the doctor {{doctor_name}}',
+            DOCTOR_PROFILE_UPDATED: 'The user {{admin}} has updated a profile for {{doctor_name}}',
+
+            PATIENT_PROFILE_CREATED: 'The user {{admin}} has created a patient profile for {{patient_name}}.',
+            PATIENT_PROFILE_APPROVAL: '{{admin}} has approved a profile {{patient_name}} profile.',
         },
     }
 };

@@ -23,7 +23,12 @@ async function createNotification(data) {
     return await notification.save();
 }
 
-export async function initiateNotifications(appointment_data, notificationType) {
+async function createMultipleNotification(data) {
+
+    return await Notification.insertMany(data);
+}
+
+async function initiateNotifications(appointment_data, notificationType) {
     let sendData, storeData, appointment_date, notify_msg, title_patient, title_doc, body_patient, body_doc,
         additional_msg_email;
     let timezone = "Asia/Calcutta";
@@ -116,15 +121,9 @@ export async function initiateNotifications(appointment_data, notificationType) 
         // Sending message notification to the doctor user
         notificationPromises.push(sendMsg(doctorUser.country_code + doctorUser.mobile_number, notify_msg));
     }
-    let adminEmail = await Configuration.findOne({name: "admin_email"})
-    if(adminEmail){
-        adminEmail = adminEmail.value
-
-    }
-    if(adminEmail)
     notificationPromises.push(new Promise(async (resolve, reject) => {
         try {
-            let html = await ejs.renderFile('views/adminEmail.ejs', {
+            let html = await ejs.renderFile(__dirname + '/../views/adminEmail.ejs', {
                 message: {
                     huno_id: appointment_data.huno_id,
                     status: capitalizeFirstLetter(appointment_data.status),
@@ -135,6 +134,13 @@ export async function initiateNotifications(appointment_data, notificationType) 
                 }
             })
             let subject = config.constants.EMAIL_SUBJECT.APPOINTMENT_UPDATED.replace('{{appointment_id}}', appointment_data.huno_id)
+            let adminEmail = await Configuration.findOne({name: "admin_email"})
+            if (!adminEmail)
+            adminEmail = "admin@livemed.io"
+                // adminEmail = "paramveer@cnetric.com"
+            else {
+                adminEmail = adminEmail.value
+            }
             resolve(sendEmail(adminEmail, subject, html));
         } catch (e) {
             resolve("Error loading template: " + JSON.stringify(e));
@@ -149,5 +155,6 @@ export async function initiateNotifications(appointment_data, notificationType) 
 
 module.exports = {
     createNotification,
-    initiateNotifications
+    initiateNotifications,
+    createMultipleNotification
 }

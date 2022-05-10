@@ -3,6 +3,11 @@ import {addBy, addSoftDelete, getCommonOptions} from "../../helpers/modelHelper"
 import * as config from "../../config/config";
 
 const schema = new mongoose.Schema({
+    speciality_id: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Speciality",
+        autopopulate: {maxDepth: 1, select: ''}
+    },
     title: {
         type: String,
         required: true,

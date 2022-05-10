@@ -1,22 +1,22 @@
 const path = require('path');
 
 const renderGeneralTC = async (req, res) => {
-    res.render('generalTC.ejs');
+    res.render(path.resolve(__dirname + '/../../views/generalTC.ejs'));
 }
 
 const renderPractitionersTC = async (req, res) => {
-    res.render('practitionersTC.ejs');
+    res.render(path.resolve(__dirname + '/../../views/practitionersTC.ejs'));
 }
 
 const renderUserTC = async (req, res) => {
-    res.render('userTC.ejs');
+    res.render(path.resolve(__dirname + '/../../views/userTC.ejs'));
 }
 const renderCancellationPolicy = async (req, res) => {
-    res.sendFile(path.resolve('views/cancellation_policy.html'))
+    res.sendFile(path.resolve(__dirname + '/../../views/cancellation_policy.html'))
 }
 
 const renderReferInvite = async (req, res) => {
-    res.sendFile(path.resolve('views/refer_invite.html'))
+    res.sendFile(path.resolve(__dirname + '/../../views/refer_invite.html'))
 }
 module.exports = {
     renderGeneralTC,

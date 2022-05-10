@@ -46,8 +46,7 @@ const getConversations = (req, res) => {
         },
         {
             $unwind: {
-                path: "$last_message",
-                preserveNullAndEmptyArrays: true
+                path: "$last_message"
             }
         },
         {

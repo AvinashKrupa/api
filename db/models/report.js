@@ -2,7 +2,6 @@ import mongoose from 'mongoose';
 import {addBy, getCommonOptions} from "../../helpers/modelHelper";
 
 const schema = new mongoose.Schema({
-
     title: {
         type: String,
         required: true,
@@ -28,8 +27,6 @@ const schema = new mongoose.Schema({
     },
     type: {
         type: String,
-        enum: ['MRI','CT Scan','Blood Test'],
-        default: 'MRI',
         required: true
     },
 }, {...getCommonOptions()});

@@ -123,6 +123,13 @@ function getFormattedValueForTime(time) {
     return (time ? ms(time) / (1000 * 60 * 60) : 24) + " hours"
 }
 
+function diffOfTwoTimeInMinutes(startDateTime, endDateTime) {  
+    let startTime = moment(startDateTime, 'DD-MM-YYYY HH:mm:ss');
+    let endTime = moment(endDateTime, 'DD-MM-YYYY HH:mm:ss');
+    let minutesDiff = endTime.diff(startTime, 'minutes');
+    return minutesDiff;
+}
+
 module.exports = {
     getStartOfDateInUTC,
     getEndOfDateInUTC,
@@ -135,5 +142,6 @@ module.exports = {
     getFormattedMomentFromDB,
     getDateTimeFromDate,
     getTimezonedDateFromUTC,
-    getMomentForDate
+    getMomentForDate,
+    diffOfTwoTimeInMinutes,
 }

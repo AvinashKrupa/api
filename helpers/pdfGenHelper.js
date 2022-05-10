@@ -5,13 +5,9 @@ const fs = require("fs");
 
 // Using to send push notification to a single device.
 export const createPdfOfHtmlDoc = (payload) => {
-    /* if (!payload.html) {
-        console.log("No html found to gen pdf")
-        return Promise.resolve()
-    } */
     return new Promise((resolve, reject) => {
         let options = {};
-        let html = fs.readFileSync("views/prescription.html", "utf8");
+        let html = fs.readFileSync(__dirname + "/../views/prescription.html", "utf8");
         const document = {
             html: html,
             data: {
@@ -22,7 +18,7 @@ export const createPdfOfHtmlDoc = (payload) => {
                 doctor_data: payload.doctor_data,
                 investigations: payload.investigations
             },
-            path: "uploads/files/prescription.pdf",
+            //path: __dirname + '/../../uploads/files/prescription.pdf',
             type: "buffer",
         };
         pdf.create(document, options).then((res) => {

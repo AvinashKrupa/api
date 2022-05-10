@@ -30,24 +30,38 @@ const prescriptionController = require("./controllers/v1/prescriptionController"
 const notificationController = require("./controllers/v1/notificationController")
 const viewController = require("./controllers/v1/viewController")
 const termsandconditionController = require("./controllers/v1/termsandconditionController")
+const adminlogController = require("./controllers/v1/adminlogController")
+const videoController = require("./controllers/v1/admin/videoController")
 
 router.get('/', (req, res) => {
     res.send(`${process.env.APP_NAME} Application is running on this Server.`);
 });
 
 //----------------------Admin------------------------------------------//
+router.post('/v1/admins', hasPermission("admin"), adminController.index);
 router.post('/v1/admin/cleanupUserRecords', hasPermission("admin"), adminController.cleanupUserRecords);
+router.post('/v1/admin/deletePatient', hasPermission("admin"), adminController.deletePatient);
+router.post('/v1/admin/deleteDoctor', hasPermission("admin"), adminController.deleteDoctor);
+router.post('/v1/admin/delete', hasPermission("admin"), adminController.deleteAdminUser);
+router.post('/v1/admin/update', hasPermission("admin"), adminController.updateAdminProfile);
+
 router.post('/v1/admin/bookAppointment', hasPermission("admin"), adminController.bookAppointment);
 
 //----------------------Auth------------------------------------------//
 router.post('/v1/auth/sendOtp', authController.sendOtp);
 router.post('/v1/auth/verifyOtp', authController.verifyOtp);
 
+router.post('/v1/auth/admin/register', hasPermission("admin"), authController.registerAdminUser);
 router.post('/v1/auth/admin/login', authController.adminLogin);
 router.post('/v1/auth/login', authController.login);
 
 router.post('/v1/auth/registerPatient', hasTempAccess(), authController.registerUser);
 router.post('/v1/auth/registerDoctor', hasTempAccess(), authController.registerUser);
+
+router.post('/v2/auth/registerPatient', hasPermission("admin"), authController.registerUser);
+router.post('/v2/auth/registerDoctor', hasPermission("admin"), authController.registerUser);
+
+router.post('/v1/auth/registerDoctor2', hasTempAccess(), upload.fields([{name: 'medical_cert_file', maxCount: 1}, {name: 'digital_signature_file', maxCount: 1}]), authController.registerUser2);
 
 router.post('/v1/auth/logout', isAuthenticated(), authController.logout);
 router.post('/v1/auth/refreshAccessToken', shouldRefreshToken(), authController.refreshAccessToken);
@@ -115,6 +129,7 @@ router.post('/v1/doctor/getAppointments', isAuthenticated(), doctorController.ge
 router.post('/v1/doctor/getDoctorDetails', isAuthenticated(), doctorController.getDoctorDetails);
 router.post('/v1/doctor/updateSchedule', isAuthenticated(), doctorController.updateSchedule);
 router.post('/v1/doctor/changeStatus', hasPermission("admin"), doctorController.changeStatus);
+router.post('/v1/doctor/setConsultation', doctorController.setConsultation);
 
 //----------------------File handler------------------------------------------//
 router.post('/v1/fileUpload', hasTempAccess(), upload.single('file'), filesController.fileUpload);
@@ -134,6 +149,7 @@ router.post('/v1/language/deleteRecord', hasPermission("admin"), langController.
 
 //---------------------- Patient ------------------------------------------//
 router.get('/v1/patients', isAuthenticated(), patientController.index);
+router.post('/v2/patients', isAuthenticated(), patientController.index2);
 router.get('/v1/patient/homeContent', isAuthenticated(), patientController.getHomeContent);
 router.post('/v1/patient/getTopConsultants', isAuthenticated(), patientController.getTopConsultants);
 router.post('/v1/patient/bookAppointment', isAuthenticated(), patientController.bookAppointment);
@@ -146,6 +162,7 @@ router.post('/v1/patient/getReports', isAuthenticated(), patientController.getRe
 router.post('/v1/patient/getPrescriptions', isAuthenticated(), patientController.getPrescriptions);
 router.post('/v1/patient/changeStatus', hasPermission("admin"), patientController.changeStatus);
 router.get('/v1/patient/getCountOfCancelAppointment', isAuthenticated(), patientController.getCountOfCancelAppointment);
+router.post('/v1/patient/getDetails', isAuthenticated(), patientController.getDetails);
 
 
 //----------------------Qualifications------------------------------------------//
@@ -189,6 +206,8 @@ router.post('/v1/users', isAuthenticated(), userController.index);
 router.get('/v1/user/profile', isAuthenticated(), userController.getProfile);
 router.post('/v1/user/getUserProfile', isAuthenticated(), userController.getUserProfile);
 router.post('/v1/user/updateProfile', isAuthenticated(), userController.updateProfile);
+
+router.post('/v1/user/updateProfile2', isAuthenticated(), upload.fields([{name: 'medical_cert_file', maxCount: 1}, {name: 'digital_signature_file', maxCount: 1}]), userController.updateProfile2);
 router.post('/v1/user/updateDeviceToken', isAuthenticated(), userController.updateDeviceToken);
 
 //----------------------Medicine------------------------------------------//
@@ -201,6 +220,8 @@ router.post('/v1/prescription/saveAsTemplate', isAuthenticated(), prescriptionCo
 router.post('/v1/prescription/submitPrescription', isAuthenticated(), prescriptionController.submitPrescription);
 router.get('/v1/prescription/getSavedTemplate', isAuthenticated(), prescriptionController.getSavedTemplate);
 router.post('/v1/prescription/deleteSavedTemplate', isAuthenticated(), prescriptionController.deleteSavedTemplate);
+router.post('/v1/prescription/deletePrescription', isAuthenticated(), prescriptionController.deletePrescription);
+router.get('/v1/aboutUs', prescriptionController.getAboutUsContent);
 
 //----------------------Notification------------------------------------------//
 router.post('/v1/notification', isAuthenticated(), notificationController.index);
@@ -215,5 +236,18 @@ router.get('/v1/refer_invite', termsandconditionController.renderReferInvite);
 router.get('/v1/termsandcondition/generalTC', termsandconditionController.renderGeneralTC);
 router.get('/v1/termsandcondition/practitionersTC', termsandconditionController.renderPractitionersTC);
 router.get('/v1/termsandcondition/userTC', termsandconditionController.renderUserTC);
+
+//---------------------- Upload file from local to s3------------------------------------------//
+router.post('/v1/uploadFileFromLocalDirToS3', hasPermission("admin"), filesController.uploadFileFromLocalDirToS3);
+
+//----------------------Admin Logs------------------------------------------//
+router.post('/v1/admin/logs', hasPermission("admin"), adminlogController.index);
+router.post('/v1/admin/send/notification/users', hasPermission("admin"), adminController.sendNotificationToUsers);
+
+//---------------------- Video ------------------------------------------//
+router.get('/v1/videos', hasTempAccess(), videoController.index);
+router.post('/v1/video/addNew', hasPermission("admin"), upload.fields([{name: 'file', maxCount: 1}, {name: 'thumb_file', maxCount: 1}]), videoController.addNew);
+router.post('/v1/video/changeStatus', hasPermission("admin"), videoController.changeStatus);
+router.post('/v1/video/deleteRecord', hasPermission("admin"), videoController.deleteRecord);
 
 module.exports = router;

@@ -7,6 +7,9 @@ import {setAttributes} from "../../../helpers/modelHelper";
 import {getFinalAmount} from "../../../helpers/couponHelper";
 import {getEndOfDateInUTC, getStartOfDateInUTC} from "../../../helpers/timeHelper";
 
+import * as config from "../../../config/config";
+import {createAdminLog} from "../../../helpers/adminlogHelper";
+
 const index = (req, res) => {
     const translator = translate(req.headers.lang);
     Coupon.find().sort({title: 1}).then(coupons => {
@@ -70,7 +73,19 @@ const changeStatus = (req, res) => {
             }
             model.status = status
             model.updated_by = res.locals.user._id
-            model = await model.save()
+            model = await model.save();
+            //Using to record the log for the admin who is changing status of it.
+            let logData = {};
+            logData.user_id = res.locals.user._id;
+            logData.module_name = config.constants.LOG_MSG_MODULE_NAME.COUPON
+            logData.title = config.constants.LOG_MSG_TITLE.COUPON_STATUS_CHANGED;
+            logData.message = config.constants.LOG_MESSAGE.COUPON_STATUS_CHANGED;
+            logData.message = logData.message.replace('{{admin}}', res.locals.user.first_name +' '+ res.locals.user.last_name);
+            logData.message = logData.message.replace('{{status}}', status);
+            logData.record_id =  _id;
+            await createAdminLog(logData);
+
+
             return jsonResponse(
                 res,
                 model,
@@ -93,6 +108,7 @@ const addNew = (req, res) => {
         start_date: "required",
         end_date: "required",
         max_usages: "required",
+        coupon_type : "required",
     };
     validate(req.body, validations)
         .then(async (matched) => {
@@ -126,7 +142,18 @@ const addNew = (req, res) => {
             setAttributes(req.body, res.locals.user, model, true, ["start_date", "end_date"])
             model.start_date = start_date
             model.end_date = end_date
-            model = await model.save()
+            model = await model.save();
+            //Using to record the log for the admin who is creating it.
+            let logData = {};
+            logData.user_id = res.locals.user._id;
+            logData.module_name = config.constants.LOG_MSG_MODULE_NAME.COUPON
+            logData.title = config.constants.LOG_MSG_TITLE.COUPON_CREATED;
+            logData.message = config.constants.LOG_MESSAGE.COUPON_CREATED;
+            logData.message = logData.message.replace('{{admin}}', res.locals.user.first_name +' '+ res.locals.user.last_name);
+            logData.message = logData.message.replace('{{coupon_code_name}}', code);
+            logData.message = logData.message.replace('{{for_use}}', coupon_type);
+            logData.record_id =  model._id;
+            await createAdminLog(logData);
             return jsonResponse(
                 res,
                 model,

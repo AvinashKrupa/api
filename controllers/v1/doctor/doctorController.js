@@ -16,7 +16,7 @@ import Doctor from "../../../db/models/doctor";
 import {getLookupForByTags} from "../../../helpers/modelHelper";
 import {getConsultantAggregate} from "../../../helpers/consultantHelper";
 import {getArrayFromFilterParams} from "../../../helpers/controllerHelper";
-import {getLookupAggregateForPatient} from "../../../helpers/appointmentHelper";
+import {getLookupAggregateForPatient, getAppointmentStats} from "../../../helpers/appointmentHelper";
 import Unavailability from "../../../db/models/unavailabilty";
 import {getDateTimeForSlot} from "../../../helpers/slotHelper";
 
@@ -25,6 +25,11 @@ import {createNotification} from "../../../helpers/notificationHelper";
 import User from "../../../db/models/user";
 import {sendMsg} from "../../../helpers/twilioHelper";
 import {sendEmail} from "../../../helpers/emailNotifier";
+import { async } from "regenerator-runtime";
+const path = require('path');
+
+import {createAdminLog} from "../../../helpers/adminlogHelper";
+import {__checkDoctorAvailabilityMsg} from "../patient/patientController";
 
 let moment = require('moment-timezone');
 const index = (req, res) => {
@@ -45,11 +50,11 @@ const index = (req, res) => {
         return errorResponse(e, res, e.code);
     });
 }
-const index2 = (req, res) => {
+const index2 = async (req, res) => {
 
     const translator = translate(req.headers.lang);
     let {timezone = "Asia/Calcutta"} = req.headers
-    let {sort_key = "first_name", sort_order = "asc", limit = 10, page = 1, filter} = req.body
+    let {sort_key = "first_name", sort_order = "asc", limit, page = 1, filter} = req.body
 
     let skipAndLimit = []
     if (typeof limit !== 'undefined') {
@@ -62,7 +67,6 @@ const index2 = (req, res) => {
     let deptNameMatch = {}
     let matchOpts = {}
     if (filter) {
-
         if (filter.dept_name) {
             let deptNameArray = getArrayFromFilterParams(filter.dept_name, false);
             if (deptNameArray.length > 0)
@@ -73,10 +77,23 @@ const index2 = (req, res) => {
             matchOpts = {...matchOpts, "first_name": {$regex: regexExp}}
         }
 
+        if (filter.mobile_number) {
+            let usersData = await User.find({mobile_number: { $regex: filter.mobile_number }}, { _id: 1 });
+            usersData = usersData.map(user => {
+                return user._id;
+            })
+            matchOpts = {...matchOpts,  "user_id": {$in: usersData}}
+        }
+
         if (filter.status) {
             let statusArray = getArrayFromFilterParams(filter.status, false);
             if (statusArray.length > 0)
                 matchOpts = {...matchOpts,"status": {$in: statusArray}}
+        }
+        if (filter.specialities) {
+            let specialityArray = getArrayFromFilterParams(filter.specialities);
+            if (specialityArray.length > 0)
+                matchOpts = {...matchOpts,"qualif.specl._id": {$in: specialityArray}}
         }
     }
 
@@ -88,7 +105,16 @@ const index2 = (req, res) => {
                 let: {userId: "$$ROOT.user_id"},
                 pipeline: [
                     {$match: {$expr: {$eq: ["$_id", "$$userId"]}},},
-                    {$project: {_id: 1, dp: 1}}
+                    {
+                        $lookup: {
+                            from: 'languages',
+                            localField: 'language',
+                            foreignField: '_id',
+                            as: 'language'
+
+                        }
+                    },
+                    {$project: {_id: 1, dp: 1,email:1, mobile_number:1,country_code:1, dob:1, language:1, gender:1}}
                 ],
                 as: "user_id"
             }
@@ -126,6 +152,7 @@ const index2 = (req, res) => {
                 last_name: 1,
                 user_id: 1,
                 status: 1,
+                address:1,
                 qualif: {
                     specl: "$qualif.specl",
                     dept_id: "$dept",
@@ -151,9 +178,13 @@ const index2 = (req, res) => {
             }
         }
 
-    ]).then(results => {
+    ]).then( async(results) => {
         let result = results[0]
         let finalResult = {};
+        for await (let doc of result.docs) {
+            let appointment_stats = await getAppointmentStats(doc._id);
+            doc.appointment_stats = appointment_stats;
+        }
         finalResult.docs = result.docs
         finalResult.total = result && result.metadata[0] ? result.metadata[0].total : 0;
         finalResult.limit = limit;
@@ -198,7 +229,7 @@ const changeStatus = async (req, res) => {
             if (!matched.status) {
                 throw new HandleError(matched.data, 422);
             }
-            let {status, doctor_id} = req.body
+            let {status, doctor_id} = req.body;
             return Doctor.findOneAndUpdate({_id: doctor_id}, {
                 status: status,
                 updated_by: res.locals.user
@@ -209,6 +240,16 @@ const changeStatus = async (req, res) => {
                 });
 
                 if (status == 'active') {
+                    let logData = {};
+                    logData.user_id = res.locals.user._id;
+                    logData.module_name = config.constants.LOG_MSG_MODULE_NAME.DOCTOR_PROFILE
+                    logData.title = config.constants.LOG_MSG_TITLE.DOCTOR_PROFILE_APPROVAL;
+                    logData.message = config.constants.LOG_MESSAGE.DOCTOR_PROFILE_APPROVAL;
+                    logData.message = logData.message.replace('{{admin}}', res.locals.user.first_name +' '+ res.locals.user.last_name);
+                    logData.message = logData.message.replace('{{doctor_name}}', result.first_name +' '+ result.last_name);
+                    logData.record_id =  doctor_id;
+                    await createAdminLog(logData);
+        
                     let sendData = {};
                     sendData.device_token = user.device_token;
                     sendData.notification_title = config.constants.NOTIFICATION_TITLE.DOCTOR_PROFILE_APPROVAL;
@@ -227,23 +268,22 @@ const changeStatus = async (req, res) => {
                     msg = config.constants.NOTIFICATION_MESSAGE.DOCTOR_PROFILE_APPROVAL;
                     mobile_number = user.country_code + user.mobile_number;
                     await sendMsg(mobile_number, msg);
-
                     /* Using to send email notification as per the status. */
-                    await res.render('doctorProfileApproved.ejs', {
+                    await res.render(path.resolve(__dirname + '/../../../views/doctorProfileApproved.ejs'), {
                         message: {name: user.first_name + ' ' + user.last_name}
                     }, async (err, html) => {
                         if (err) {
-                            console.error("Something went wrong during render html in ctr", JSON.stringify(err));
+                            //console.error("Something went wrong during render html in ctr", JSON.stringify(err));
                         }
                         await sendEmail(user.email, config.constants.EMAIL_SUBJECT.DOCTOR_PROFILE_APPROVAL, html);
                     });
                 } else if (status == 'inactive') {
                     /* Using to send email notification as per the status. */
-                    await res.render('doctorProfileRejected.ejs', {
+                    await res.render(path.resolve(__dirname + '/../../../views/doctorProfileRejected.ejs'), {
                         message: {name: user.first_name + ' ' + user.last_name}
                     }, async (err, html) => {
                         if (err) {
-                            console.error("Something went wrong during render html in ctr", JSON.stringify(err));
+                            //console.error("Something went wrong during render html in ctr", JSON.stringify(err));
                         }
                         await sendEmail(user.email, config.constants.EMAIL_SUBJECT.DOCTOR_PROFILE_REJECTED, html);
                     });
@@ -266,6 +306,7 @@ const changeStatus = async (req, res) => {
  */
 const getDoctorDetails = async (req, res) => {
     const translator = translate(req.headers.lang);
+    let {timezone = "Asia/Calcutta"} = req.headers;
     const validations = {
         doctor_id: "required",
     };
@@ -285,7 +326,12 @@ const getDoctorDetails = async (req, res) => {
                         Appointment.find({doctor: doctor_id, status: "completed"}, {_id: 1}),
                         Language.find({_id: {$in: doctor.user_id.language}}, {name: 1})
                     ])
-                    let speclArr = []
+                    let speclArr = [];
+                    let total_consultations ;
+                    total_consultations = results[0] ? results[0].length : 0 ;
+                    if(doctor.set_consultation) {
+                        total_consultations = total_consultations + doctor.set_consultation;
+                    }
                     let doctorResp = {
                         first_name: doctor.first_name,
                         last_name: doctor.last_name,
@@ -305,8 +351,9 @@ const getDoctorDetails = async (req, res) => {
                         desc: doctor.desc,
                         shift: doctor.avail.shift,
                         day: doctor.avail.day,
-                        total_consultations: results[0] ? results[0].length : 0,
-                        similar_doctors: []
+                        total_consultations: total_consultations,
+                        similar_doctors: [],
+                        slots: doctor.avail.slots,
                     }
                     if (include_similar) {
                         let options = {
@@ -320,8 +367,12 @@ const getDoctorDetails = async (req, res) => {
 
                         }
                         let similarDocAggregate = getConsultantAggregate(options)
-                        let similar_doctors = await Doctor.aggregate(similarDocAggregate).then(results => {
+                        let similar_doctors = await Doctor.aggregate(similarDocAggregate).then( async (results) => {
                             let result = results[0]
+                            for await (let doc of result.docs) {
+                                let resData = await __checkDoctorAvailabilityMsg(doc._id, timezone)
+                                doc.next_avail_slot_time = resData.next_avail_slot_time ;
+                            }
                             return Promise.resolve(result.docs);
                         })
                         doctorResp.similar_doctors = similar_doctors
@@ -349,8 +400,7 @@ const getDoctorDetails = async (req, res) => {
 const getAppointments = async (req, res) => {
     const translator = translate(req.headers.lang);
     let {timezone = "Asia/Calcutta"} = req.headers
-    let {sort_key = "time.utc_time", sort_order = "desc", limit = 10, page = 1, status, date, search_text} = req.body
-
+    let {sort_key = "time.utc_time", sort_order = "desc", limit = 10, page = 1, status, date, search_text, is_random=false} = req.body;
     let skipAndLimit = []
     if (typeof limit !== 'undefined') {
         skipAndLimit = [{$skip: limit * (page - 1)},
@@ -385,46 +435,93 @@ const getAppointments = async (req, res) => {
             ]
         }
     }
-    return Appointment.aggregate([
-        {$match: matchCond},
-        {
-            ...getLookupAggregateForPatient()
-        },
-        {$unwind: {path: "$patient"}},
-        {$match: {...orOpts}},
-        ...getLookupForByTags(),
-        {
-            $project: {
-                first_name: "$patient.user.first_name",
-                last_name: "$patient.user.last_name",
-                dp: "$patient.user.dp",
-                patient_id: "$patient._id",
-                reason: 1,
-                complaints: 1,
-                created_by: 1,
-                updated_by: 1,
-                time: 1,
-                status: 1,
-                consulting_type: 1,
-                created_at: 1,
-                updated_at: 1,
-                cancel_reason: 1,
-                huno_id: 1,
-                adtnl_status: 1
+    let aggregateQuery;
+    if(is_random) {
+        aggregateQuery =  [
+            {$match: matchCond},
+            { $sample: { size: limit} },
+            {
+                ...getLookupAggregateForPatient()
+            },
+            {$unwind: {path: "$patient"}},
+            {$match: {...orOpts}},
+            ...getLookupForByTags(),
+            {
+                $project: {
+                    first_name: "$patient.user.first_name",
+                    last_name: "$patient.user.last_name",
+                    dp: "$patient.user.dp",
+                    patient_id: "$patient._id",
+                    reason: 1,
+                    complaints: 1,
+                    created_by: 1,
+                    updated_by: 1,
+                    time: 1,
+                    status: 1,
+                    consulting_type: 1,
+                    created_at: 1,
+                    updated_at: 1,
+                    cancel_reason: 1,
+                    huno_id: 1,
+                    adtnl_status: 1
+                }
+            }, {
+                $sort: {
+                    [sort_key]: sort_order === "asc" ? 1 : -1
+                }
+            },
+            {
+                $facet: {
+                    metadata: [{$count: "total"}],
+                    docs: skipAndLimit
+                }
             }
-        }, {
-            $sort: {
-                [sort_key]: sort_order === "asc" ? 1 : -1
+    
+        ]
+    } else {
+        aggregateQuery =  [
+            {$match: matchCond},
+            {
+                ...getLookupAggregateForPatient()
+            },
+            {$unwind: {path: "$patient"}},
+            {$match: {...orOpts}},
+            ...getLookupForByTags(),
+            {
+                $project: {
+                    first_name: "$patient.user.first_name",
+                    last_name: "$patient.user.last_name",
+                    dp: "$patient.user.dp",
+                    patient_id: "$patient._id",
+                    reason: 1,
+                    complaints: 1,
+                    created_by: 1,
+                    updated_by: 1,
+                    time: 1,
+                    status: 1,
+                    consulting_type: 1,
+                    created_at: 1,
+                    updated_at: 1,
+                    cancel_reason: 1,
+                    huno_id: 1,
+                    adtnl_status: 1
+                }
+            }, {
+                $sort: {
+                    [sort_key]: sort_order === "asc" ? 1 : -1
+                }
+            },
+            {
+                $facet: {
+                    metadata: [{$count: "total"}],
+                    docs: skipAndLimit
+                }
             }
-        },
-        {
-            $facet: {
-                metadata: [{$count: "total"}],
-                docs: skipAndLimit
-            }
-        }
+    
+        ]
+    }
 
-    ]).then(results => {
+    return Appointment.aggregate(aggregateQuery).then(results => {
         let result = results[0]
         let finalResult = {};
         finalResult.docs = result.docs.map(appointment => {
@@ -513,6 +610,26 @@ const updateSchedule = (req, res) => {
         return errorResponse(e, res, e.code);
     });
 }
+
+const setConsultation = (req, res) => {
+    const translator = translate(req.headers.lang);
+    Doctor.find({set_consultation: ""},  {_id:1 , set_consultation: 1})
+        .then(doctors => {
+            doctors.forEach( async(doctor) => {
+                let randomConsultation = Math.floor(Math.random() * 6) + 1 ;
+                await Doctor.findOneAndUpdate({_id: doctor._id}, {set_consultation: randomConsultation})
+            });
+            return jsonResponse(
+                res,
+                doctors,
+                translator.__("retrieve_success"),
+                200
+            );
+        }).catch((e) => {
+        return errorResponse(e, res, e.code);
+    });
+}
+
 module.exports = {
     index,
     index2,
@@ -520,5 +637,6 @@ module.exports = {
     getAppointments,
     getDoctorDetails,
     changeStatus,
-    updateSchedule
+    updateSchedule,
+    setConsultation,
 }

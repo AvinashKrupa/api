@@ -40,10 +40,10 @@ export const sendMsg = async (phoneNum, msg) => {
         to: phoneNum,  // Text this number
         from: twilioFromNumber // From a valid Twilio number
     }).then(res => {
-        console.log('Sent message to the number', phoneNum);
+        //console.log('Sent message to the number', phoneNum);
         return Promise.resolve(res);
     }).catch(error => {
-        console.log('Something went wrong during sending msg.', error);
+        //console.log('Something went wrong during sending msg.', error);
         return Promise.resolve(false)
     })
 }

@@ -15,11 +15,9 @@ const transporter = nodeMailer.createTransport({
 });
 
 export const sendEmail = (emailId, emailSubject, html,cc) => {
-    if (process.env.NODE_ENV == "dev")
-        return Promise.resolve(true)
     return new Promise((resolve, reject) => {
         let mailOptions = {
-            from: `${process.env.APP_NAME} <  ${process.env.FROM_EMAIL}>`,
+            from: 'LiveMedic <' + 'noreply@livemed.io>',
             to: emailId,
             subject: emailSubject,
             html: html
@@ -32,7 +30,7 @@ export const sendEmail = (emailId, emailSubject, html,cc) => {
         //console.log('mailOptions', mailOptions);
         transporter.sendMail(mailOptions, (err, info) => {
             if (err) {
-                console.error("Something went wrong during sending email", JSON.stringify(err));
+                //console.error("Something went wrong during sending email", JSON.stringify(err));
                 //reject({message: "Something went wrong. ", code: 400, error: err})
             }
             //console.log('Message sent: %s', info.messageId);

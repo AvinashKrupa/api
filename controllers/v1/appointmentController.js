@@ -13,21 +13,21 @@ import {HandleError} from "../../helpers/errorHandling";
 import {
     getLookupAggregateForDoctor,
     getLookupAggregateForDoctorMinimal,
-    getLookupAggregateForPatient
+    getLookupAggregateForPatient,
+    getLookupAggregateForCoupon
 } from "../../helpers/appointmentHelper";
 
 import mongoose from 'mongoose';
 import {getLookupForByTags} from "../../helpers/modelHelper";
 import Slot from "../../db/models/slot";
 import {getArrayFromFilterParams} from "../../helpers/controllerHelper";
-
-import _ from 'lodash'
 import {getMeetingAccessToken} from "../../helpers/sessionHelper";
 import * as config from "../../config/config";
 import Patient from "../../db/models/patient";
 import Doctor from "../../db/models/doctor";
 import {initiateRefund} from "../../helpers/transactionHelper";
 import Transaction from "../../db/models/transaction";
+import {createAdminLog} from "../../helpers/adminlogHelper";
 
 let moment = require('moment-timezone');
 const ObjectId = mongoose.Types.ObjectId;
@@ -59,7 +59,7 @@ const index2 = (req, res) => {
 
     const translator = translate(req.headers.lang);
     let {timezone = "Asia/Calcutta"} = req.headers
-    let {sort_key = "created_at", sort_order = "asc", limit = 10, page = 1, filter} = req.body
+    let {sort_key = "created_at", sort_order = "asc", limit, page = 1, filter} = req.body
 
     let skipAndLimit = []
     if (typeof limit !== 'undefined') {
@@ -103,6 +103,9 @@ const index2 = (req, res) => {
             ...getLookupAggregateForPatient()
         },
         {$unwind: {path: "$patient"}},
+        {
+            ...getLookupAggregateForCoupon()
+        },
         {$match: {...patientNameMatch}},
         {
             ...getLookupAggregateForDoctorMinimal()
@@ -135,8 +138,10 @@ const index2 = (req, res) => {
                 consulting_type: 1,
                 reason: 1,
                 adtnl_status: 1,
+                cancel_reason:1,
                 payment_mode: 1,
                 fee: 1,
+                coupon:1
             }
         }, {
             $sort: {
@@ -194,6 +199,10 @@ const getDetails = (req, res) => {
                 },
                 {$unwind: {path: "$patient"}},
                 {
+                    ...getLookupAggregateForCoupon()
+                },
+                //{$unwind: {path: "$coupon"}},
+                {
                     ...getLookupAggregateForDoctor()
                 },
                 {$unwind: {path: "$doctor"}},
@@ -210,12 +219,22 @@ const getDetails = (req, res) => {
                 let appointment = results[0];    //Since we are matching with only 1 id
                 appointment.time.slot = moment.tz(getFormattedMomentFromDB(appointment.time.slot), timezone).format("HH:mm")
                 appointment.time.date = getTimezonedDateFromUTC(appointment.time.utc_time, timezone)
-                if (appointment.prescription && appointment.prescription.length > 0)
+                if (appointment.prescription && appointment.prescription.length > 0) {
                     appointment["prescription"] = [{
                         name: `Dr ${appointment.doctor.first_name} ${appointment.doctor.last_name}`,
                         url: appointment.presc_url,
                         created_at: appointment.created_at
                     }]
+                }
+                let total , discount;
+                if(appointment.coupon.hasOwnProperty('discount_pct')) {
+                    discount = ((appointment.fee * appointment.coupon.discount_pct) / 100 );
+                } else {
+                    discount = 0;
+                }
+                total = (appointment.fee - discount);
+                appointment.total = total;
+                appointment.discount = discount;
                 return jsonResponse(
                     res,
                     appointment,
@@ -313,12 +332,23 @@ const changeStatus = async (req, res) => {
                         cancellation_of_appointment: "Refunding for the patient due to cancellation of the appointment.",
                     };
                     try {
+                        //Using to record the log for the admin who is canceling appointment for the patient.
+                        let logData = {};
+                        logData.user_id = res.locals.user._id;
+                        logData.module_name = config.constants.LOG_MSG_MODULE_NAME.APPOINTMENT
+                        logData.title = config.constants.LOG_MSG_TITLE.APPOINTMENT_CANCELED;
+                        logData.message = config.constants.LOG_MESSAGE.APPOINTMENT_CANCELED;
+                        logData.message = logData.message.replace('{{admin}}', res.locals.user.first_name +' '+ res.locals.user.last_name);
+                        logData.message = logData.message.replace('{{appointment_id}}', result.huno_id);
+                        logData.record_id =  appointment_id;
+                        await createAdminLog(logData);
+
                         await Transaction.findOne({appointment: result._id}).then(async transaction => {
                             if (transaction && transaction.razorpay_payment_id)
                                 await initiateRefund(transaction.razorpay_payment_id, refundObj);
                         })
                     } catch (e) {
-                        console.log("error>>", e)
+                        //console.log("error>>", e)
                     }
                 }
                 return jsonResponse(
@@ -362,6 +392,16 @@ const rescheduleAppointment = async (req, res) => {
                 if (!result) {
                     throw new HandleError("Cannot reschedule appointment", 400)
                 } else {
+                    //Using to record the log for the admin who is rescheduling appointment for the patient.
+                    let logData = {};
+                    logData.user_id = res.locals.user._id;
+                    logData.module_name = config.constants.LOG_MSG_MODULE_NAME.APPOINTMENT
+                    logData.title = config.constants.LOG_MSG_TITLE.APPOINTMENT_RESCHEDULED;
+                    logData.message = config.constants.LOG_MESSAGE.APPOINTMENT_RESCHEDULED;
+                    logData.message = logData.message.replace('{{admin}}', res.locals.user.first_name +' '+ res.locals.user.last_name);
+                    logData.message = logData.message.replace('{{appointment_id}}', result.huno_id);
+                    logData.record_id =  appointment_id;
+                    await createAdminLog(logData);
                     return jsonResponse(
                         res,
                         result,
@@ -408,7 +448,7 @@ const joinAppointment = (req, res) => {
             let meeting_url = process.env.MEET_URL + appointment._id + "?jwt=" + token
             if (appointment.status === "scheduled")
                 appointment.status = "ongoing"
-            if (!appointment.participants)
+            if (!appointment.participants||appointment.participants.length===0)
                 appointment.participants = [res.locals.user.selected_profile_id]
             else if (appointment.participants.length > 0 && !appointment.participants.includes(res.locals.user.selected_profile_id)) {
                 appointment.participants.push(res.locals.user.selected_profile_id)
@@ -492,10 +532,6 @@ const endAppointment = async (req, res) => {
             } else if (appointment.status == "completed") {
                 message = "Appointment already ended."
             }
-            if (appointment.participants)
-                _.remove(appointment.participants, function (participant) {
-                    return participant == res.locals.user.selected_profile_id;
-                });
             if (appointment.status === "ongoing") {
                 appointment.status = "completed"
                 await appointment.save()

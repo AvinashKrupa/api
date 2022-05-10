@@ -58,7 +58,8 @@ const authenticate = async (phoneNum, countryCode, type) => {
  * @returns {void|*}
  */
 const emailPassAuthenticate = async (username, password) => {
-    return User.findOne({email: username.toLowerCase()}).then(user => {
+    let matchCond = {email: username.toLowerCase(), profile_types:{$elemMatch:{$eq:"3"}}}
+    return User.findOne(matchCond).then(user => {
         if (user) {
             return comparePassword(password, user.password).then(response => {
                 if (response !== true) {

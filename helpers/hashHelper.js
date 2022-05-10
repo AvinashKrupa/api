@@ -4,13 +4,14 @@ let bcrypt = require("bcrypt");
 let crypto = require("crypto");
 const jwt = require("jsonwebtoken");
 
-const BCRYPT_SALT_ROUNDS = 10;
+const BCRYPT_SALT_ROUNDS = 8;
 
 const cryptPassword = (password) => {
     return bcrypt.hashSync(password, BCRYPT_SALT_ROUNDS);
 };
 
 const comparePassword = async (plainPass, hashword) => {
+    //console.log('plainPass', plainPass, hashword );
     return await bcrypt.compare(plainPass, hashword);
 };
 
