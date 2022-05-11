@@ -83,7 +83,7 @@ schema.pre('save', function (next) {
         return next();
     } else {
         return getNextSequence("patient").then(count => {
-            self.huno_id = "HUNOP"+count;
+            self.huno_id = process.env.PATIENT_SHORT_CODE + count;
             next();
         })
     }

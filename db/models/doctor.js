@@ -170,7 +170,7 @@ schema.pre('save', function (next) {
         return next();
     } else {
         return getNextSequence("doctor").then(count => {
-            self.huno_id = "HUNOD" + count;
+            self.huno_id = process.env.DOCTOR_SHORT_CODE + count;
             next();
         })
     }
