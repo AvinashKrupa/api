@@ -19,15 +19,17 @@ export const createPatient = async (user, reqBody, createdByUser) => {
         user.profile_types.push(config.constants.USER_TYPE_PATIENT)
 
         //Using to record the log for the admin who is creating doctor profile it.
-        let logData = {};
-        logData.user_id = createdByUser._id;
-        logData.module_name = config.constants.LOG_MSG_MODULE_NAME.PATIENT_PROFILE
-        logData.title = config.constants.LOG_MSG_TITLE.PATIENT_PROFILE_CREATED;
-        logData.message = config.constants.LOG_MESSAGE.PATIENT_PROFILE_CREATED;
-        logData.message = logData.message.replace('{{admin}}', createdByUser.first_name +' '+ createdByUser.last_name);
-        logData.message = logData.message.replace('{{patient_name}}', user.first_name +' '+ user.last_name);
-        logData.record_id =  patient_data._id;
-        await createAdminLog(logData);
+        if(createdByUser){
+            let logData = {};
+            logData.user_id = createdByUser._id;
+            logData.module_name = config.constants.LOG_MSG_MODULE_NAME.PATIENT_PROFILE
+            logData.title = config.constants.LOG_MSG_TITLE.PATIENT_PROFILE_CREATED;
+            logData.message = config.constants.LOG_MESSAGE.PATIENT_PROFILE_CREATED;
+            logData.message = logData.message.replace('{{admin}}', createdByUser.first_name +' '+ createdByUser.last_name);
+            logData.message = logData.message.replace('{{patient_name}}', user.first_name +' '+ user.last_name);
+            logData.record_id =  patient_data._id;
+            await createAdminLog(logData);
+        }
         await user.save()
         return Promise.resolve(userObj)
     }).catch(e => {
