@@ -23,7 +23,7 @@ export const handleCancellation = async (appointment, localUser) => {
     if (patient.planned_cancellation === 3) {
         if (patient.suspended_at) {
             patient.status = 'banned';
-            errorMessage = "Your account has been banned due to violation of LiveMedic terms. Please contact support."
+            errorMessage = "Your account has been banned due to violation of DiaMed terms. Please contact support."
         } else {
             patient.status = 'suspended';
             patient.suspended_at = new Date();

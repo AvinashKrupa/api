@@ -58,7 +58,7 @@ const sendOtp = (req, res) => {
                         break;
                 }
                 if(additionalProf&&additionalProf.status!=="active"){
-                    return errorResponse({data:{call:"+918001156789",email:"support@livemed.io"},message:`Your profile is ${additionalProf.status}. Please contact support.`},res,400)
+                    return errorResponse({data:{call:"+918001156789",email:"support@diamed.app"},message:`Your profile is ${additionalProf.status}. Please contact support.`},res,400)
                 }
             }
 

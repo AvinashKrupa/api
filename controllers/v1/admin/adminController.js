@@ -438,7 +438,7 @@ const sendNotificationToUsers = async (req, res) => {
             if (!matched.status) {
                 throw new HandleError(matched.data, 422);
             }
-            let {user_type, msg, user_ids=[], msg_title='LiveMedic' } = req.body;
+            let {user_type, msg, user_ids=[], msg_title='DiaMed' } = req.body;
             user_type = parseInt(user_type);
             let sendData, storeData, usersData, doctors, patients;
             sendData = {};

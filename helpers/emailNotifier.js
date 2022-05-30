@@ -17,7 +17,7 @@ const transporter = nodeMailer.createTransport({
 export const sendEmail = (emailId, emailSubject, html,cc) => {
     return new Promise((resolve, reject) => {
         let mailOptions = {
-            from: 'LiveMedic <' + 'noreply@livemed.io>',
+            from: 'DiaMed <' + 'noreply@diamed.app>',
             to: emailId,
             subject: emailSubject,
             html: html

@@ -136,7 +136,7 @@ async function initiateNotifications(appointment_data, notificationType) {
             let subject = config.constants.EMAIL_SUBJECT.APPOINTMENT_UPDATED.replace('{{appointment_id}}', appointment_data.huno_id)
             let adminEmail = await Configuration.findOne({name: "admin_email"})
             if (!adminEmail)
-            adminEmail = "admin@livemed.io"
+            adminEmail = "admin@diamed.app"
                 // adminEmail = "paramveer@cnetric.com"
             else {
                 adminEmail = adminEmail.value
