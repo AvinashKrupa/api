@@ -39,3 +39,5 @@ const port = config.appPort || 3001;
 app.listen(port, () => {
     console.log(`${process.env.APP_NAME} app listening at port :${port}`);
 });
+
+// end of the file
